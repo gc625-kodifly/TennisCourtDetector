@@ -33,12 +33,30 @@ if __name__ == '__main__':
     inp = inp.unsqueeze(0)
 
     out = model(inp.float().to(device))[0]
+
+    # [NUM POINTS + 1, HEIGHT, WIDTH]
     pred = F.sigmoid(out).detach().cpu().numpy()
+
 
     points = []
     for kps_num in range(14):
+        
         heatmap = (pred[kps_num]*255).astype(np.uint8)
-        x_pred, y_pred = postprocess(heatmap, low_thresh=170, max_radius=25)
+
+        # heatmap is a 1xhxw blackwhtie image, overlay the white on img var
+
+        overlay = img.copy()
+        cv2.addWeighted(np.repeat(heatmap[:,:,np.newaxis],3,axis=2), 0.5, overlay, 0.5, 0, overlay)
+
+        cv2.imwrite(f'/home/gabriel/swing-vision/TennisCourtDetector/output/heatmap/{kps_num}.png', overlay)
+        x_pred, y_pred = postprocess(heatmap, scale=1,low_thresh=170, max_radius=25)
+        
+        # draw the point on the image
+        overlay = img.copy()
+        cv2.circle(overlay, (int(x_pred), int(y_pred)), radius=0, color=(0, 0, 255), thickness=10)
+
+        cv2.imwrite(f'/home/gabriel/swing-vision/TennisCourtDetector/output/circle/{kps_num}_point.png', overlay)
+
         if args.use_refine_kps and kps_num not in [8, 12, 9] and x_pred and y_pred:
             x_pred, y_pred = refine_kps(image, int(y_pred), int(x_pred))
         points.append((x_pred, y_pred))
@@ -49,9 +67,15 @@ if __name__ == '__main__':
             points = cv2.perspectiveTransform(refer_kps, matrix_trans)
             points = [np.squeeze(x) for x in points]
 
-    for j in range(len(points)):
-        if points[j][0] is not None:
-            image = cv2.circle(image, (int(points[j][0]), int(points[j][1])),
-                               radius=0, color=(0, 0, 255), thickness=10)
+original_shape = image.shape[:2]
+scale_x = original_shape[1] / OUTPUT_WIDTH
+scale_y = original_shape[0] / OUTPUT_HEIGHT
+
+for j in range(len(points)):
+    if points[j][0] is not None:
+        x = int(points[j][0] * scale_x)
+        y = int(points[j][1] * scale_y)
+        image = cv2.circle(image, (x, y), radius=0, color=(0, 0, 255), thickness=10)
+
 
     cv2.imwrite(args.output_path, image)
