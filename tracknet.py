@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-
+import torch.nn.functional as F
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, pad=1, stride=1, bias=True):
         super().__init__()
@@ -70,6 +70,7 @@ class BallTrackerNet(nn.Module):
         x = self.conv16(x)
         x = self.conv17(x)
         x = self.conv18(x)
+        x = F.sigmoid(x)
         return x
     
     def _init_weights(self):
